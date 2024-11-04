@@ -10,6 +10,9 @@ import sched
 
 my_x_coordinate = random.randint(0, 10)
 my_y_coordinate = random.randint(0, 10)
+
+T_sens = 1
+transaction = {}
 my_addr = None
 output_file = None
 TTL = 13
@@ -50,6 +53,7 @@ connected_peers = {}
 
 
 def listen_server(conn):
+    global transaction
     while True:
         data = conn.recv(2048).decode()
         if not data:
@@ -58,8 +62,11 @@ def listen_server(conn):
         # data = json.loads(remove_padding(data))
         # if data["type"] == "Sensor_data":
         #     print("Sensor data received from server: ", data)
+
         data = json.loads(data)
         print("server: ", data)
+        
+        transaction = data
 
 
 def add_padding(raw_data):
@@ -281,9 +288,9 @@ def schedule_mine_block():
 
 
 def mine_block():
-    global blockChain, my_addr
+    global blockChain, my_addr, transaction
 
-    block = blockChain.mine_block()
+    block = blockChain.mine_block(transaction)
     message = {
         "type": "block message",
         "data": block.__dict__(),
@@ -361,7 +368,7 @@ def main():
 
         start_new_thread(accept_peers, (sock,))
         random.shuffle(peer_list)
-        print(peer_list)
+        print("The Peer List is:", peer_list)
 
         peer_count = 0
         for i in range(len(peer_list)):

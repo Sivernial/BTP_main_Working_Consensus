@@ -8,10 +8,11 @@ import random
 # Global variables
 # List to keep track of clients
 clients = []
-
-
 # Output file
 output_file = None
+nodeid = ""
+nodeip = ""
+nodeport = 0
 
 
 # Class to make a peer object
@@ -104,7 +105,7 @@ def send_all_clients(data, idx):
             clients[i].conn.sendall(data)
             with open(output_file, "a") as f:
                 print(f"Sent to Peer_{i}: {data}", file=f)
-            
+
         except Exception as e:
             with open(output_file, "a") as f:
                 print(f"Connection closed by Peer_{i} because of {e}", file=f)
@@ -114,7 +115,7 @@ def send_all_clients(data, idx):
 
 def send_sens_data():
     sleep(15)
-    global clients, output_file
+    global clients, output_file, nodeid, nodeip, nodeport
     with open(
         "C:/Users/samya/Downloads/raw_weather_data_aug_sep_2014/tempm.txt", "r"
     ) as file:
@@ -130,17 +131,27 @@ def send_sens_data():
                 key, value = pair.split(": ")
                 # Strip quotes and print the sensor data
                 key = key.strip('"')
-                value = value.strip('"')
-                message = {"type": "Sensor_data", "Time": key, "Temperature": value}
-                print(message)
+                value = value.strip('"').rstrip("}")
+
+                message = {
+                    "type": "Sensor_data",
+                    "Time": key,
+                    "Temperature": value,
+                    "nodeid": nodeid,
+                    "nodeip": nodeip,
+                    "nodeport": nodeport,
+                    "Tconf": random.randint(7, 10),
+                }
             send_all_clients(json.dumps(message).encode(), None)
             sleep(1)
 
 
 # Main function
 def main(ip, port, node_id):
-    global clients, output_file
-
+    global clients, output_file, nodeip, nodeport, nodeid
+    nodeip = ip
+    nodeport = port
+    nodeid = node_id
     # create the output file for each seed node
     output_file = f"bin/servers/output_{node_id}.txt"
 
@@ -162,7 +173,6 @@ def main(ip, port, node_id):
 
 
 if __name__ == "__main__":
-    global nodeip, nodeport, nodeid
     main("127.0.0.1", int(sys.argv[1]), sys.argv[2])
     nodeip = "127.0.0.1"
     nodeport = int(sys.argv[1])
