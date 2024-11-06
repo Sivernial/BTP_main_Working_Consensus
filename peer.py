@@ -17,7 +17,7 @@ def start_servers():
     for i in range(3):
         command = f"python echo-client.py {i}"
         run_in_new_terminal(command)
-        sleep(2)
+        sleep(6)
 
 
 if __name__ == "__main__":

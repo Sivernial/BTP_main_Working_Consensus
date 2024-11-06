@@ -4,6 +4,7 @@ from time import sleep
 import json
 import sys
 import random
+import csv
 
 # Global variables
 # List to keep track of clients
@@ -97,7 +98,6 @@ def accept_clients(sock, clients):
 # Function to send data to all the peers
 def send_all_clients(data, idx):
     global clients, output_file
-    print(len(clients))
     for i in range(len(clients)):
         if clients[i] == idx:
             continue
@@ -116,33 +116,35 @@ def send_all_clients(data, idx):
 def send_sens_data():
     sleep(15)
     global clients, output_file, nodeid, nodeip, nodeport
-    with open(
-        "C:/Users/samya/Downloads/raw_weather_data_aug_sep_2014/tempm.txt", "r"
-    ) as file:
-        for line in file:
-            # Strip leading and trailing whitespace and the trailing comma
-            line = line.strip().rstrip(",")
-            # print(line)
-            # Split the line into individual key-value pairs
-            message = {}
-            data_pairs = line.split(", ")
-            for pair in data_pairs:
-                # Split each pair into key and value
-                key, value = pair.split(": ")
-                # Strip quotes and print the sensor data
-                key = key.strip('"')
-                value = value.strip('"').rstrip("}")
+    file_path = f"dataset\cell_{nodeid}.csv"
 
-                message = {
-                    "type": "Sensor_data",
-                    "Time": key,
-                    "Temperature": value,
-                    "nodeid": nodeid,
-                    "nodeip": nodeip,
-                    "nodeport": nodeport,
-                    "Tconf": random.randint(7, 10),
-                }
+    # Open the CSV file
+    with open(file_path, "r") as file:
+        # Create a CSV reader object
+        csv_reader = csv.reader(file)
+
+        # Skip the header row
+        next(csv_reader)
+
+        # Iterate over each row in the CSV file
+        for row in csv_reader:
+            # Accessing timestamp (UTC time) and RSRQ values based on your data
+            timestamp = row[2]  # UTC column
+            rsrp = row[16]  # RSRQ column
+            message = {
+                "type": "Sensor_data",
+                "timestamp": timestamp,
+                "RSRP": rsrp,
+                "nodeid": nodeid,
+                "nodeip": nodeip,
+                "nodeport": nodeport,
+                "Tconf": random.randint(7, 10),
+            }
+
+            # Sending the message to all clients
             send_all_clients(json.dumps(message).encode(), None)
+
+            # Sleep for 1 second between each row
             sleep(1)
 
 

@@ -51,9 +51,46 @@ class Peer:
 
 connected_peers = {}
 
+sensor_data_map = {}
+overall_trust_sensor_map = {}
+
+
+def calculate_trust_value(sensor_id, sensor_data):
+    current_value = float(sensor_data["value"])
+    current_conf = sensor_data["conf"]
+
+    Nij = []
+    Tconfs = []
+
+    # Iterate over the stored sensor data (i.e., neighboring nodes)
+    for node_id, neighbor_data in sensor_data_map.items():
+        if node_id == sensor_id:
+            continue  # Don't compare the node to itself
+
+        neighbor_value = float(neighbor_data["value"])
+        neighbor_conf = int(neighbor_data["conf"])
+
+        # Calculate the absolute difference between current node and neighbor
+        value_diff = abs(current_value - neighbor_value)
+        support = 1 if value_diff < 1.0 else -1
+
+        # Store support value and confidence of the neighbor
+        Nij.append(support)
+        Tconfs.append(neighbor_conf)
+
+    if len(Nij) == 0:
+        return 0
+
+    # Calculate trust value (Tsens_ij) using the formula
+    Tsens_ij = (1 / len(Nij)) * sum(
+        support * conf for support, conf in zip(Nij, Tconfs)
+    )
+
+    return Tsens_ij
+
 
 def listen_server(conn):
-    global transaction
+    global transaction,sensor_data_map, overall_trust_sensor_map
     while True:
         data = conn.recv(2048).decode()
         if not data:
@@ -64,9 +101,36 @@ def listen_server(conn):
         #     print("Sensor data received from server: ", data)
 
         data = json.loads(data)
-        print("server: ", data)
-        
-        transaction = data
+        # Assuming each data received contains an identifier for the sensor node (e.g., 'sensor_id')
+        sensor_id = data["nodeid"]
+        sensor_value = data["RSRP"]
+        sensor_conf = data["Tconf"]
+
+        # Store the data in sensor_data_map
+        sensor_data_map[sensor_id] = {"value": sensor_value, "conf": sensor_conf}
+
+        # Calculate trust value for the current node
+        trust_value = calculate_trust_value(sensor_id, sensor_data_map[sensor_id])
+        if sensor_id not in overall_trust_sensor_map:
+            overall_trust_sensor_map[sensor_id] = 1 * sensor_conf * trust_value
+        else:
+            # Update the existing value
+            overall_trust_sensor_map[sensor_id] *= sensor_conf * trust_value
+        print(f"Trust value for sensor node {sensor_id}: {trust_value}")
+
+        transaction_field = {
+            "timestamp": time.asctime(time.localtime()),
+            "nodeid": sensor_id,
+            "nodeip": data["nodeip"],
+            "nodeport": data["nodeport"],
+            "value": sensor_value,
+            "Tconf": sensor_conf,
+            "Tsens": trust_value,
+            "Toverall": overall_trust_sensor_map[sensor_id],
+        }
+        transaction = transaction_field
+        with open(output_file, "a") as f:
+            logger.info(f"Transaction: {transaction}")
 
 
 def add_padding(raw_data):
