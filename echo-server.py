@@ -4,7 +4,8 @@ from time import sleep
 import json
 import sys
 import random
-import csv
+import pandas as pd
+
 
 # Global variables
 # List to keep track of clients
@@ -114,31 +115,48 @@ def send_all_clients(data, idx):
 
 
 def send_sens_data():
-    sleep(15)
     global clients, output_file, nodeid, nodeip, nodeport
-    file_path = f"dataset\cell_{nodeid}.csv"
+    file_path = f"C:\IIT_Jodhpur\BTP\Blockchain_BTP-main\SWaT.A1 & A2_Dec 2015-20241130T113652Z-001\SWaT.A1 & A2_Dec 2015\Physical\SWaT_Dataset_Attack_v0.xlsx"
 
     # Open the CSV file
-    with open(file_path, "r") as file:
-        # Create a CSV reader object
-        csv_reader = csv.reader(file)
+    print(f"Reading data from {file_path}")
+    data = pd.read_excel(file_path, header=0)
+    print(f"Data sending started")
 
-        # Skip the header row
-        next(csv_reader)
-
-        # Iterate over each row in the CSV file
-        for row in csv_reader:
-            # Accessing timestamp (UTC time) and RSRQ values based on your data
-            timestamp = row[2]  # UTC column
-            rsrp = row[16]  # RSRQ column
+    # Iterate over each row in the DataFrame
+    for _, row in data.iloc[1100:].iterrows():
+        # Accessing timestamp (UTC time) and RSRQ values based on your data
+        timestamp = row[0]  # UTC column
+        value = row[2]
+        status = row[52]
+        if status == "Normal" and nodeid != "16919327":
+            print(f"The timestamp is {timestamp} and the value is {value}")
             message = {
                 "type": "Sensor_data",
                 "timestamp": timestamp,
-                "RSRP": rsrp,
+                "Value": value,
                 "nodeid": nodeid,
                 "nodeip": nodeip,
                 "nodeport": nodeport,
                 "Tconf": random.randint(7, 10),
+                "Status": status,
+            }
+
+            # Sending the message to all clients
+            send_all_clients(json.dumps(message).encode(), None)
+
+            # Sleep for 1 second between each row
+        else:
+            print(f"The timestamp is {timestamp} and the value is {value}")
+            message = {
+                "type": "Sensor_data",
+                "timestamp": timestamp,
+                "Value": value,
+                "nodeid": nodeid,
+                "nodeip": nodeip,
+                "nodeport": nodeport,
+                "Tconf": random.randint(7, 10),
+                "Status": status,
             }
 
             # Sending the message to all clients
