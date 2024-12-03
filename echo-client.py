@@ -56,7 +56,7 @@ overall_trust_sensor_map = {}
 
 
 def calculate_trust_value(sensor_id, sensor_data):
-    current_value = float(sensor_data["value"])
+    current_value = abs(float(sensor_data["value"]))
     current_conf = sensor_data["conf"]
 
     Nij = []
@@ -67,12 +67,12 @@ def calculate_trust_value(sensor_id, sensor_data):
         if node_id == sensor_id:
             continue  # Don't compare the node to itself
 
-        neighbor_value = float(neighbor_data["value"])
+        neighbor_value = abs(float(neighbor_data["value"]))
         neighbor_conf = int(neighbor_data["conf"])
 
         # Calculate the absolute difference between current node and neighbor
         value_diff = abs(current_value - neighbor_value)
-        support = 1 if value_diff < 1.0 else -1
+        support = 1 if value_diff < 0.35 else 0
 
         # Store support value and confidence of the neighbor
         Nij.append(support)
@@ -90,7 +90,7 @@ def calculate_trust_value(sensor_id, sensor_data):
 
 
 def listen_server(conn):
-    global transaction,sensor_data_map, overall_trust_sensor_map
+    global transaction, sensor_data_map, overall_trust_sensor_map
     while True:
         data = conn.recv(2048).decode()
         if not data:
@@ -102,10 +102,11 @@ def listen_server(conn):
 
         data = json.loads(data)
         # Assuming each data received contains an identifier for the sensor node (e.g., 'sensor_id')
-        sensor_id = data["nodeid"]
-        sensor_value = data["RSRP"]
-        sensor_conf = data["Tconf"]
+        sensor_id = int(data["nodeid"])
+        sensor_status = data["Status"]
 
+        sensor_value = data["Value"]
+        sensor_conf = data["Tconf"]
         # Store the data in sensor_data_map
         sensor_data_map[sensor_id] = {"value": sensor_value, "conf": sensor_conf}
 
@@ -115,8 +116,12 @@ def listen_server(conn):
             overall_trust_sensor_map[sensor_id] = 1 * sensor_conf * trust_value
         else:
             # Update the existing value
-            overall_trust_sensor_map[sensor_id] *= sensor_conf * trust_value
-        print(f"Trust value for sensor node {sensor_id}: {trust_value}")
+            overall_trust_sensor_map[sensor_id] = sensor_conf * trust_value
+        print(
+            f"Trust value for sensor node {sensor_id}: {overall_trust_sensor_map[sensor_id]}"
+        )
+        if overall_trust_sensor_map[sensor_id] < 0.5:
+            print(f"Sensor node {sensor_id} is compromised")
 
         transaction_field = {
             "timestamp": time.asctime(time.localtime()),
@@ -127,10 +132,11 @@ def listen_server(conn):
             "Tconf": sensor_conf,
             "Tsens": trust_value,
             "Toverall": overall_trust_sensor_map[sensor_id],
+            "status": sensor_status,
         }
         transaction = transaction_field
-        with open(output_file, "a") as f:
-            logger.info(f"Transaction: {transaction}")
+        # with open(output_file, "a") as f:
+        #     logger.info(f"Transaction: {transaction}")
 
 
 def add_padding(raw_data):
@@ -230,11 +236,11 @@ def listen_peer(peer):
             peer.ip = data["ip"]
             peer.port = data["port"]
 
-            with open(output_file, "a") as f:
-                logger.info(
-                    f"Peer request from {peer.ip}:{peer.port}",
-                    extra={"log_color": "INFO[peer_request]"},
-                )
+            # with open(output_file, "a") as f:
+            #     logger.info(
+            #         f"Peer request from {peer.ip}:{peer.port}",
+            #         extra={"log_color": "INFO[peer_request]"},
+            #     )
 
             connected_peers[peer.port] = peer
 
@@ -249,11 +255,11 @@ def listen_peer(peer):
 
         elif data["type"] == "Liveness":
 
-            with open(output_file, "a") as f:
-                logger.info(
-                    f"Received liveness message from {peer.ip}:{peer.port} at {data['time']}",
-                    extra={"log_color": "INFO[liveness]"},
-                )
+            # with open(output_file, "a") as f:
+            #     logger.info(
+            #         f"Received liveness message from {peer.ip}:{peer.port} at {data['time']}",
+            #         extra={"log_color": "INFO[liveness]"},
+            #     )
             cur_time = time.localtime()
             message = {
                 "type": "Liveness_reply",
@@ -265,11 +271,11 @@ def listen_peer(peer):
 
         elif data["type"] == "Liveness_reply":
 
-            with open(output_file, "a") as f:
-                logger.info(
-                    f"Sending liveness reply to {peer.ip}:{peer.port} at {data['time']}",
-                    extra={"log_color": "INFO[liveness_reply]"},
-                )
+            # with open(output_file, "a") as f:
+            #     logger.info(
+            #         f"Sending liveness reply to {peer.ip}:{peer.port} at {data['time']}",
+            #         extra={"log_color": "INFO[liveness_reply]"},
+            #     )
             connected_peers[peer.port].tries = max(
                 0, connected_peers[peer.port].tries - 1
             )
@@ -370,6 +376,7 @@ def euclidean_distance(x1, y1, x2, y2):
 
 
 def main():
+    sleep(200)
     global my_addr, connected_peers, output_file, server_sockets, logger, colors, blockChain, scheduler, my_x_coordinate, my_y_coordinate
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
